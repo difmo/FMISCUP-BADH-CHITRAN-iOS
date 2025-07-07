@@ -77,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Do NOT auto-fill OTP fields here to allow manual input
       } else {
         setState(() {
-          _message = 'Failed to send OTP: ${response.statusCode}';
+          _message = 'Failed to send OTP: ${response.message}';
         });
       }
     } catch (e) {
@@ -125,81 +125,79 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-Future<void> loginUser() async {
-  final String email = _emailController.text.trim();
-  final String password = _passwordController.text.trim();
-  final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-  if (email.isEmpty) {
-    GlobalClass.customToast('Please enter your email');
-    return;
-  } else if (!emailRegex.hasMatch(email)) {
-    GlobalClass.customToast('Enter a valid email address');
-    return;
-  } else if (password.isEmpty) {
-    GlobalClass.customToast('Please Enter Password');
-    return;
-  } else {
-    setState(() {
-      _termsError = null;
-    });
-    if (!_formKey.currentState!.validate()) return;
-    if (!_termsAccepted) {
-      setState(() {
-        _termsError = 'You must accept the terms and conditions';
-      });
+  Future<void> loginUser() async {
+    final String email = _emailController.text.toString().trim();
+    final String password = _passwordController.text.toString().trim();
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (email == null || email.isEmpty) {
+      GlobalClass.customToast('Please enter your email');
       return;
-    }
-    setState(() {
-      _isLoading = true;
-      _message = '';
-    });
-    String url =
-        'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
-    try {
-      final response = await http.get(Uri.parse(url));
-      print('Status Code login: ${response.statusCode}');
-      print('Response Body login: ${response.body}');
-      
-      // Parse response body regardless of status code
+    } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      GlobalClass.customToast('Enter a valid email address');
+      return;
+    } else if (password == null || password.isEmpty) {
+      GlobalClass.customToast('Please Enter Password');
+      return;
+    } else {
+      setState(() {
+        _termsError = null;
+      });
+      if (!_formKey.currentState!.validate()) return;
+      if (!_termsAccepted) {
+        setState(() {
+          _termsError = 'You must accept the terms and conditions';
+        });
+        return;
+      }
+      setState(() {
+        _isLoading = true;
+        _message = '';
+      });
+       String url =
+          'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
       try {
-        final jsonResponse = json.decode(response.body);
-        if (response.statusCode == 200 && jsonResponse['success'] == true) {
-          _mobileNo = jsonResponse['data']['mobileNo'];
-          _userId = jsonResponse['data']['userID'];
-          print('User Mobile No: $_mobileNo');
-          print('userID: $_userId');
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
-          await prefs.setString('userId', _userId!);
-          await prefs.setString('savedEmail', email);
-          await prefs.setString('savedPassword', password);
-          setState(() {
-            _message = 'Login Successful ✅';
-          });
-          sendOtp(_mobileNo!);
+        final response = await http.get(Uri.parse(url));
+        print('Status Code login: ${response.statusCode}');
+        print('Response Body login: ${response.body}');
+        if (response.statusCode == 200) {
+          final jsonResponse = json.decode(response.body);
+          if (jsonResponse['success'] == true) {
+            _mobileNo = jsonResponse['data']['mobileNo'];
+            _userId = jsonResponse['data']['userID']; // ✅ Extract userID
+            print('User Mobile No: $_mobileNo');
+            print('userID: $_userId');
+            // Clear previously saved credentials
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.clear(); // Clear all keys if needed
+            // Save new credentials
+            await prefs.setString('userId', _userId!);
+            await prefs.setString('savedEmail', email);
+            await prefs.setString('savedPassword', password);
+            setState(() {
+              _message = 'Login Successful ✅';
+            });
+            sendOtp(_mobileNo!); // Your next step
+          } else {
+            setState(() {
+              _message = jsonResponse['message'] ?? 'Login failed';
+            });
+          }
         } else {
-          // Use the API's message field if available
           setState(() {
-            _message = jsonResponse['message'] ?? 'Login failed';
+            _message = 'Request failed with status: ${response.statusCode}';
           });
         }
       } catch (e) {
-        // Handle JSON parsing error
         setState(() {
-          _message = 'Error parsing response';
+          _message = 'Error: $e';
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _message = 'Error: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
-}
 
   void _login() {
     if (_termsAccepted) {
@@ -359,7 +357,9 @@ Future<void> loginUser() async {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                 
+                                    Text("_message")
+
+                  Text(_message)
                   SizedBox(height: screenWidth * 0.05),
                   Container(
                     padding: EdgeInsets.all(screenWidth * 0.05),
@@ -650,13 +650,13 @@ Future<void> loginUser() async {
                               ),
                             ),
                           ),
-                        SizedBox(height: screenWidth * 0.05),
-                        Text(
-                          _message,
-                          style: TextStyle(
-                            color: _message == 'OTP Verified ✅' ? Colors.green : Colors.red,
-                          ),
-                        ),
+                        // SizedBox(height: screenWidth * 0.05),
+                        // Text(
+                        //   _message,
+                        //   style: TextStyle(
+                        //     color: _message == 'OTP Verified ✅' ? Colors.green : Colors.red,
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
