@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:fmiscupaap3/uploadfloodworkscreen.dart';
@@ -19,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _otpController =
-      TextEditingController(); // OTP Controller
+      TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _message = '';
   bool _termsAccepted = false;
@@ -124,7 +125,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     });
   }
-
+Future<bool> checkInternet() async {
+  try {
+    final socket = await Socket.connect('google.com', 80, timeout: Duration(seconds: 3));
+    socket.destroy();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 Future<void> loginUser() async {
   final String email = _emailController.text.trim();
   final String password = _passwordController.text.trim();
@@ -139,6 +148,13 @@ Future<void> loginUser() async {
     GlobalClass.customToast('Please Enter Password');
     return;
   } else {
+    if(!await checkInternet()) {
+      setState(() {
+        _message = 'No internet connection';
+      });
+      GlobalClass.customToast('No internet connection');
+      return;
+    }
     setState(() {
       _termsError = null;
     });
