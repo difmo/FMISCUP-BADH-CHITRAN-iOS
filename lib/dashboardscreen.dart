@@ -230,30 +230,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               SizedBox(height: 10),
               // Minister Cards
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: ministers.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: screenWidth < 600 ? 2 : 4,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 4.6 / 4,
-                  ),
-                  itemBuilder: (context, index) {
-                    final minister = ministers[index];
-                    final isWideImage = minister['name'] == 'Yogi Adityanath';
-                    return MinisterCard(
-                      name: minister['name']!,
-                      position: minister['position']!,
-                      imagePath: minister['imagePath']!,
-                      isWideImage: isWideImage,
-                    );
-                  },
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final screenWidth = constraints.maxWidth;
+
+                  int crossAxisCount;
+                  double aspectRatio;
+
+                  if (screenWidth < 600) {
+                    // Mobile
+                    crossAxisCount = 2;
+                    aspectRatio = 5.6 / 5;
+                  } else if (screenWidth < 900) {
+                    // Small Tablet
+                    crossAxisCount = 3;
+                    aspectRatio = 3.6 / 4.5;
+                  } else {
+                    // Large Tablet / Desktop
+                    crossAxisCount = 4;
+                    aspectRatio = 2.6 / 4;
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: ministers.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: aspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        final minister = ministers[index];
+                        final isWideImage =
+                            minister['name'] == 'Yogi Adityanath';
+
+                        return MinisterCard(
+                          name: minister['name']!,
+                          position: minister['position']!,
+                          imagePath: minister['imagePath']!,
+                          isWideImage: isWideImage,
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
+
               const SizedBox(height: 10),
               // Continue Button
               Padding(
@@ -277,7 +303,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: const Icon(Icons.arrow_forward, color: Colors.white),
                     label: const Text(
                       'Continue',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),

@@ -19,8 +19,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _otpController =
-      TextEditingController();
+  final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _message = '';
   bool _termsAccepted = false;
@@ -32,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   double? _elevation;
   double? _accuracy;
   bool _isLoading = false;
-  bool _isOtpVerified = false; // Track OTP verification status
   bool _isOtpInputVisible = false; // Show OTP input only after login
   List<TextEditingController> _otpControllers = List.generate(
     6,
@@ -58,24 +56,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final otp = (100000 + random.nextInt(900000)).toString(); // 6-digit OTP
     _generatedOtp = otp;
     print('otp1233 : $otp');
+
     final Uri url = Uri.parse(
-      'https://smsjust.com/sms/user/urlsms.php?'
-      'username=UPFWBI&pass=Amit@123&senderid=UPFWBI&'
-      'message=Your%20security%20code%20is%20$otp.%20UPFWBI&'
-      'dest_mobileno=$mobileNumber&msgtype=TXT&response=Y',
+      "https://www.smsjust.com/sms/user/urlsms.php?apikey=6c0384-dd9494-ff97df-fcefc1-14a497&senderid=UPFWBI&dlttempid=1707173503381660952&message=Your%20One-Time%20Password%20(OTP)%20for%20Login%20is%20$otp%20-%20UPFWBI%20&dest_mobileno=$mobileNumber&&response=Y",
     );
+
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         print('OTP API Response: ${response.body}');
-        // You can extract and store the OTP internally (for test/verification purpose if needed)
         final body = response.body.trim();
         final extractedOtp = body.substring(body.length - 5);
         print("Extracted OTP: $extractedOtp");
         setState(() {
           _message = 'OTP sent to $mobileNumber';
         });
-        // Do NOT auto-fill OTP fields here to allow manual input
       } else {
         setState(() {
           _message = 'Failed to send OTP: ${response.statusCode}';
@@ -88,21 +83,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Function to verify OTP
   void verifyOtp() {
     String enteredOtp =
         _otpControllers.map((controller) => controller.text).join();
     if (enteredOtp == _generatedOtp || enteredOtp == '202526') {
       setState(() {
-        _isOtpVerified = true; // Mark OTP as verified
         _message = 'OTP Verified ✅';
       });
-      // Navigate to the next screen (e.g., HomeScreen) after OTP verification
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => UploadFloodWorkScreen(),
-        ), // Replace HomeScreen with your target screen
+        MaterialPageRoute(builder: (context) => UploadFloodWorkScreen()),
       );
     } else {
       setState(() {
@@ -125,97 +115,101 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     });
   }
-Future<bool> checkInternet() async {
-  try {
-    final socket = await Socket.connect('google.com', 80, timeout: Duration(seconds: 3));
-    socket.destroy();
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-Future<void> loginUser() async {
-  final String email = _emailController.text.trim();
-  final String password = _passwordController.text.trim();
-  final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-  if (email.isEmpty) {
-    GlobalClass.customToast('Please enter your email');
-    return;
-  } else if (!emailRegex.hasMatch(email)) {
-    GlobalClass.customToast('Enter a valid email address');
-    return;
-  } else if (password.isEmpty) {
-    GlobalClass.customToast('Please Enter Password');
-    return;
-  } else {
-    if(!await checkInternet()) {
-      setState(() {
-        _message = 'No internet connection';
-      });
-      GlobalClass.customToast('No internet connection');
-      return;
-    }
-    setState(() {
-      _termsError = null;
-    });
-    if (!_formKey.currentState!.validate()) return;
-    if (!_termsAccepted) {
-      setState(() {
-        _termsError = 'You must accept the terms and conditions';
-      });
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _message = '';
-    });
-    String url =
-        'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
+
+  Future<bool> checkInternet() async {
     try {
-      final response = await http.get(Uri.parse(url));
-      print('Status Code login: ${response.statusCode}');
-      print('Response Body login: ${response.body}');
-      
-      // Parse response body regardless of status code
+      final socket = await Socket.connect(
+        'google.com',
+        80,
+        timeout: Duration(seconds: 3),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> loginUser() async {
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (email.isEmpty) {
+      GlobalClass.customToast('Please enter your email');
+      return;
+    } else if (!emailRegex.hasMatch(email)) {
+      GlobalClass.customToast('Enter a valid email address');
+      return;
+    } else if (password.isEmpty) {
+      GlobalClass.customToast('Please Enter Password');
+      return;
+    } else {
+      if (!await checkInternet()) {
+        setState(() {
+          _message = 'No internet connection';
+        });
+        GlobalClass.customToast('No internet connection');
+        return;
+      }
+      setState(() {
+        _termsError = null;
+      });
+      if (!_formKey.currentState!.validate()) return;
+      if (!_termsAccepted) {
+        setState(() {
+          _termsError = 'You must accept the terms and conditions';
+        });
+        return;
+      }
+      setState(() {
+        _isLoading = true;
+        _message = '';
+      });
+      String url =
+          'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
       try {
-        final jsonResponse = json.decode(response.body);
-        if (response.statusCode == 200 && jsonResponse['success'] == true) {
-          _mobileNo = jsonResponse['data']['mobileNo'];
-          _userId = jsonResponse['data']['userID'];
-          print('User Mobile No: $_mobileNo');
-          print('userID: $_userId');
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
-          await prefs.setString('userId', _userId!);
-          await prefs.setString('savedEmail', email);
-          await prefs.setString('savedPassword', password);
+        final response = await http.get(Uri.parse(url));
+        print('Status Code login: ${response.statusCode}');
+        print('Response Body login: ${response.body}');
+
+        // Parse response body regardless of status code
+        try {
+          final jsonResponse = json.decode(response.body);
+          if (response.statusCode == 200 && jsonResponse['success'] == true) {
+            _mobileNo = jsonResponse['data']['mobileNo'];
+            _userId = jsonResponse['data']['userID'];
+            print('User Mobile No: $_mobileNo');
+            print('userID: $_userId');
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.clear();
+            await prefs.setString('userId', _userId!);
+            await prefs.setString('savedEmail', email);
+            await prefs.setString('savedPassword', password);
+            setState(() {
+              _message = 'Login Successful ✅';
+            });
+            sendOtp(_mobileNo!);
+          } else {
+            setState(() {
+              _message = jsonResponse['message'] ?? 'Login failed';
+            });
+          }
+        } catch (e) {
           setState(() {
-            _message = 'Login Successful ✅';
-          });
-          sendOtp(_mobileNo!);
-        } else {
-          // Use the API's message field if available
-          setState(() {
-            _message = jsonResponse['message'] ?? 'Login failed';
+            _message = 'Error parsing response';
           });
         }
       } catch (e) {
-        // Handle JSON parsing error
         setState(() {
-          _message = 'Error parsing response';
+          _message = 'Error: $e';
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _message = 'Error: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
-}
 
   void _login() {
     if (_termsAccepted) {
@@ -375,7 +369,6 @@ Future<void> loginUser() async {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                 
                   SizedBox(height: screenWidth * 0.05),
                   Container(
                     padding: EdgeInsets.all(screenWidth * 0.05),
@@ -512,8 +505,7 @@ Future<void> loginUser() async {
                                   onChanged: (bool? value) {
                                     setState(() {
                                       _termsAccepted = value!;
-                                      _termsError =
-                                          null; // clear error on change
+                                      _termsError = null;
                                     });
                                   },
                                 ),
@@ -522,8 +514,7 @@ Future<void> loginUser() async {
                                     onTap: () {
                                       setState(() {
                                         _termsAccepted = !_termsAccepted;
-                                        _termsError =
-                                            null; // clear error on tap
+                                        _termsError = null;
                                       });
                                     },
                                     child: const Text(
@@ -670,7 +661,10 @@ Future<void> loginUser() async {
                         Text(
                           _message,
                           style: TextStyle(
-                            color: _message == 'OTP Verified ✅' ? Colors.green : Colors.red,
+                            color:
+                                _message == 'OTP Verified ✅'
+                                    ? Colors.green
+                                    : Colors.red,
                           ),
                         ),
                       ],
