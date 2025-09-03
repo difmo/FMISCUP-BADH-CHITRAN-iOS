@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:fmiscupaap3/uploadfloodworkscreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'globalclass.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,7 +21,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _message = '';
   bool _termsAccepted = false;
@@ -36,7 +37,6 @@ class _LoginScreenState extends State<LoginScreen> {
     6,
     (index) => TextEditingController(),
   );
-  bool _showOtpSection = false;
   List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _start = 30;
   Timer? _timer;
@@ -80,6 +80,13 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _message = 'OTP error: $e';
       });
+    }
+  }
+
+  Future<void> _launchTermsUrl() async {
+    final Uri url = Uri.parse('https://twisworld.in/privacy_en.html');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
     }
   }
 
@@ -232,10 +239,8 @@ class _LoginScreenState extends State<LoginScreen> {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Show dialog if location is not enabled
       showDialog(
         context: context,
         builder:
@@ -499,32 +504,63 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Checkbox(
-                                  value: _termsAccepted,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _termsAccepted = value!;
-                                      _termsError = null;
-                                    });
-                                  },
+                                Container(
+                                  height: 28,
+                                  child: Checkbox(
+                                    value: _termsAccepted,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _termsAccepted = value!;
+                                        _termsError = null;
+                                      });
+                                    },
+                                  ),
                                 ),
                                 Expanded(
-                                  child: InkWell(
+                                  child: GestureDetector(
                                     onTap: () {
                                       setState(() {
                                         _termsAccepted = !_termsAccepted;
                                         _termsError = null;
                                       });
                                     },
-                                    child: const Text(
-                                      "I accept the terms and conditions",
-                                      style: TextStyle(fontSize: 12),
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                        ),
+                                        children: [
+                                          const TextSpan(text: 'I accept the '),
+                                          TextSpan(
+                                            text: 'terms and conditions',
+                                            style: const TextStyle(
+                                              color: Colors.blue,
+                                            ),
+                                            recognizer:
+                                                TapGestureRecognizer()
+                                                  ..onTap = _launchTermsUrl,
+                                          ),
+                                          const TextSpan(text: ' and '),
+                                          TextSpan(
+                                            text: 'privacy policy',
+                                            style: const TextStyle(
+                                              color: Colors.blue,
+                                            ),
+                                            recognizer:
+                                                TapGestureRecognizer()
+                                                  ..onTap = _launchTermsUrl,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
+
                             if (_termsError != null)
                               Padding(
                                 padding: const EdgeInsets.only(

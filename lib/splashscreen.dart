@@ -86,6 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 10),
               const Text(
                 'Flood Management Information System Centre',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
