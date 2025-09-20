@@ -26,16 +26,24 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ✅ Updated purpose strings below -->
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to capture images.</string>
+	<string>The camera is used to capture profile photos and scan government-issued documents for identity verification and application submissions.</string>
+
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to your location to provide location-based services even when the app is in the background.</string>
+	<string>Location data is used in the background to notify users when they are near specific landmarks or government service centers relevant to flood monitoring and emergency response.</string>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app requires your location to show nearby information and improve the user experience.</string>
+	<string>Location is used while the app is active to display nearby flood-affected areas, service points, and relevant alerts for better safety and response planning.</string>
+
 	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access for audio recording.</string>
+	<string>The microphone is used to record voice notes or reports related to incidents or field data collection by users.</string>
+
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to upload images.</string>
+	<string>Photo library access is needed to allow users to upload images of affected areas, damage evidence, or required documents from their gallery.</string>
+	<!-- ✅ End of updated purpose strings -->
+
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
