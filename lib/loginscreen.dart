@@ -178,7 +178,6 @@ class _LoginScreenState extends State<LoginScreen> {
         final response = await http.get(Uri.parse(url));
         print('Status Code login: ${response.statusCode}');
         print('Response Body login: ${response.body}');
-
         // Parse response body regardless of status code
         try {
           final jsonResponse = json.decode(response.body);
