@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:fmiscupaap3/uploadfloodworkscreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'globalclass.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,8 +21,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _otpController =
-      TextEditingController(); // OTP Controller
   final _formKey = GlobalKey<FormState>();
   String _message = '';
   bool _termsAccepted = false;
@@ -31,13 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
   double? _elevation;
   double? _accuracy;
   bool _isLoading = false;
-  bool _isOtpVerified = false; // Track OTP verification status
   bool _isOtpInputVisible = false; // Show OTP input only after login
   List<TextEditingController> _otpControllers = List.generate(
     6,
     (index) => TextEditingController(),
   );
-  bool _showOtpSection = false;
   List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _start = 30;
   Timer? _timer;
@@ -57,24 +56,25 @@ class _LoginScreenState extends State<LoginScreen> {
     final otp = (100000 + random.nextInt(900000)).toString(); // 6-digit OTP
     _generatedOtp = otp;
     print('otp1233 : $otp');
-    final Uri url = Uri.parse(
-      'https://smsjust.com/sms/user/urlsms.php?'
-      'username=UPFWBI&pass=Amit@123&senderid=UPFWBI&'
-      'message=Your%20security%20code%20is%20$otp.%20UPFWBI&'
-      'dest_mobileno=$mobileNumber&msgtype=TXT&response=Y',
-    );
+
+    final String apiUrl =
+        "https://bulksms.bsnl.in:5010/api/Push_SMS?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1bmlxdWVfbmFtZSI6IjExMjI3IDEiLCJuYmYiOjE3NTkzMDc0OTEsImV4cCI6MTc5MDg0MzQ5MSwiaWF0IjoxNzU5MzA3NDkxLCJpc3MiOiJodHRwczovL2J1bGtzbXMuYnNubC5pbjo1MDEwIiwiYXVkIjoiMTEyMjcgMSJ9.fVsQNJxKwmel8pT9QSNwpGXTbih5cZpjo5bQ-Mp2d9k&header=FMISUP&target=$mobileNumber&message=Your%20One%20Time%20Password%20for%20Login%20is%20$otp%0A-%20Flood%20Management%20Info%20Sys%20Centre%20Irrigation%20Department%20UP&type=TXN&templateid=1407175930492674022&entityid=1401706860000076282&unicode=0&flash=0";
+
+    final Uri url = Uri.parse(apiUrl);
+    // final Uri url = Uri.parse(
+    //   "https://www.smsjust.com/sms/user/urlsms.php?apikey=6c0384-dd9494-ff97df-fcefc1-14a497&senderid=UPFWBI&dlttempid=1707173503381660952&message=Your%20One-Time%20Password%20(OTP)%20for%20Login%20is%20$otp%20-%20UPFWBI%20&dest_mobileno=$mobileNumber&&response=Y",
+    // );
+
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         print('OTP API Response: ${response.body}');
-        // You can extract and store the OTP internally (for test/verification purpose if needed)
         final body = response.body.trim();
         final extractedOtp = body.substring(body.length - 5);
         print("Extracted OTP: $extractedOtp");
         setState(() {
           _message = 'OTP sent to $mobileNumber';
         });
-        // Do NOT auto-fill OTP fields here to allow manual input
       } else {
         setState(() {
           _message = 'Failed to send OTP: ${response.statusCode}';
@@ -87,21 +87,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Function to verify OTP
+  Future<void> _launchTermsUrl() async {
+    final Uri url = Uri.parse(
+      'https://fcrupid.fmisc.up.gov.in/privacy-bc.html',
+    );
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
+    }
+  }
+
   void verifyOtp() {
     String enteredOtp =
         _otpControllers.map((controller) => controller.text).join();
     if (enteredOtp == _generatedOtp || enteredOtp == '202526') {
       setState(() {
-        _isOtpVerified = true; // Mark OTP as verified
         _message = 'OTP Verified ✅';
       });
-      // Navigate to the next screen (e.g., HomeScreen) after OTP verification
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => UploadFloodWorkScreen(),
-        ), // Replace HomeScreen with your target screen
+        MaterialPageRoute(builder: (context) => UploadFloodWorkScreen()),
       );
     } else {
       setState(() {
@@ -125,20 +129,41 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
+  Future<bool> checkInternet() async {
+    try {
+      final socket = await Socket.connect(
+        'google.com',
+        80,
+        timeout: Duration(seconds: 3),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> loginUser() async {
-    final String email = _emailController.text.toString().trim();
-    final String password = _passwordController.text.toString().trim();
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text.trim();
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (email == null || email.isEmpty) {
+    if (email.isEmpty) {
       GlobalClass.customToast('Please enter your email');
       return;
-    } else if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+    } else if (!emailRegex.hasMatch(email)) {
       GlobalClass.customToast('Enter a valid email address');
       return;
-    } else if (password == null || password.isEmpty) {
+    } else if (password.isEmpty) {
       GlobalClass.customToast('Please Enter Password');
       return;
     } else {
+      if (!await checkInternet()) {
+        setState(() {
+          _message = 'No internet connection';
+        });
+        GlobalClass.customToast('No internet connection');
+        return;
+      }
       setState(() {
         _termsError = null;
       });
@@ -153,38 +178,37 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = true;
         _message = '';
       });
-       String url =
+      String url =
           'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
       try {
         final response = await http.get(Uri.parse(url));
         print('Status Code login: ${response.statusCode}');
         print('Response Body login: ${response.body}');
-        if (response.statusCode == 200) {
+        // Parse response body regardless of status code
+        try {
           final jsonResponse = json.decode(response.body);
-          if (jsonResponse['success'] == true) {
+          if (response.statusCode == 200 && jsonResponse['success'] == true) {
             _mobileNo = jsonResponse['data']['mobileNo'];
-            _userId = jsonResponse['data']['userID']; // ✅ Extract userID
+            _userId = jsonResponse['data']['userID'];
             print('User Mobile No: $_mobileNo');
             print('userID: $_userId');
-            // Clear previously saved credentials
             final prefs = await SharedPreferences.getInstance();
-            await prefs.clear(); // Clear all keys if needed
-            // Save new credentials
+            await prefs.clear();
             await prefs.setString('userId', _userId!);
             await prefs.setString('savedEmail', email);
             await prefs.setString('savedPassword', password);
             setState(() {
               _message = 'Login Successful ✅';
             });
-            sendOtp(_mobileNo!); // Your next step
+            sendOtp(_mobileNo!);
           } else {
             setState(() {
               _message = jsonResponse['message'] ?? 'Login failed';
             });
           }
-        } else {
+        } catch (e) {
           setState(() {
-            _message = 'Request failed with status: ${response.statusCode}';
+            _message = 'Error parsing response';
           });
         }
       } catch (e) {
@@ -220,10 +244,8 @@ class _LoginScreenState extends State<LoginScreen> {
     bool serviceEnabled;
     LocationPermission permission;
 
-    // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Show dialog if location is not enabled
       showDialog(
         context: context,
         builder:
@@ -487,34 +509,63 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Checkbox(
-                                  value: _termsAccepted,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _termsAccepted = value!;
-                                      _termsError =
-                                          null; // clear error on change
-                                    });
-                                  },
+                                Container(
+                                  height: 28,
+                                  child: Checkbox(
+                                    value: _termsAccepted,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _termsAccepted = value!;
+                                        _termsError = null;
+                                      });
+                                    },
+                                  ),
                                 ),
                                 Expanded(
-                                  child: InkWell(
+                                  child: GestureDetector(
                                     onTap: () {
                                       setState(() {
                                         _termsAccepted = !_termsAccepted;
-                                        _termsError =
-                                            null; // clear error on tap
+                                        _termsError = null;
                                       });
                                     },
-                                    child: const Text(
-                                      "I accept the terms and conditions",
-                                      style: TextStyle(fontSize: 12),
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                        ),
+                                        children: [
+                                          const TextSpan(text: 'I accept the '),
+                                          TextSpan(
+                                            text: 'terms and conditions',
+                                            style: const TextStyle(
+                                              color: Colors.blue,
+                                            ),
+                                            recognizer:
+                                                TapGestureRecognizer()
+                                                  ..onTap = _launchTermsUrl,
+                                          ),
+                                          const TextSpan(text: ' and '),
+                                          TextSpan(
+                                            text: 'privacy policy',
+                                            style: const TextStyle(
+                                              color: Colors.blue,
+                                            ),
+                                            recognizer:
+                                                TapGestureRecognizer()
+                                                  ..onTap = _launchTermsUrl,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
+
                             if (_termsError != null)
                               Padding(
                                 padding: const EdgeInsets.only(
@@ -647,13 +698,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                        // SizedBox(height: screenWidth * 0.05),
-                        // Text(
-                        //   _message,
-                        //   style: TextStyle(
-                        //     color: _message == 'OTP Verified ✅' ? Colors.green : Colors.red,
-                        //   ),
-                        // ),
+                        SizedBox(height: screenWidth * 0.05),
+                        Text(
+                          _message,
+                          style: TextStyle(
+                            color:
+                                _message == 'OTP Verified ✅'
+                                    ? Colors.green
+                                    : Colors.red,
+                          ),
+                        ),
                       ],
                     ),
                   ),

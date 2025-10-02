@@ -5,11 +5,14 @@ import 'package:fmiscupaap3/dashboardscreen.dart';
 import 'package:fmiscupaap3/globalclass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:image/image.dart' as img; // Add this at the top\
-import 'package:shared_preferences/shared_preferences.dart'; // for SharedPreferences
+import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 
 class UploadFloodWorkScreen extends StatefulWidget {
   @override
@@ -74,8 +77,6 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
 
   Future<void> fetchLocationData(BuildContext context) async {
     LocationPermission permission;
-
-    // Keep showing dialog until location services are enabled
     while (!await Geolocator.isLocationServiceEnabled()) {
       bool shouldContinue = await showDialog(
         context: context,
@@ -210,6 +211,65 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     }
   }
 
+  Future<File?> _takePhoto() async {
+    final picker = ImagePicker();
+    final XFile? pickedFile = await picker.pickImage(
+      source: ImageSource.camera,
+    );
+
+    if (pickedFile != null) {
+      final Directory appDir = await getApplicationDocumentsDirectory();
+      final String fileName =
+          'custom_image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String customPath = path.join(appDir.path, fileName);
+
+      File originalFile = File(pickedFile.path);
+      int fileSize = await originalFile.length();
+
+      // Check if file is already under 4 MB
+      if (fileSize <= 4 * 1024 * 1024) {
+        final File newImage = await originalFile.copy(customPath);
+        return newImage;
+      }
+
+      // Compress the image if it's larger than 4 MB
+      final String compressedPath = path.join(
+        appDir.path,
+        'compressed_$fileName',
+      );
+      final XFile? compressedFile =
+          (await FlutterImageCompress.compressAndGetFile(
+            originalFile.path,
+            compressedPath,
+            quality: 70, // You can adjust quality for better size control
+          ));
+      File file = File(compressedFile?.path ?? "");
+      if (await file.length() <= 4 * 1024 * 1024) {
+        return file;
+      } else {
+        // If still too big, return null or handle accordingly
+        print('Image is too large even after compression.');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  void _handlePhotoCapture() async {
+    try {
+      final File? imagePath = await _takePhoto();
+      if (imagePath != null) {
+        setState(() {
+          _pickedImage = imagePath;
+        });
+      } else {
+        print('No photo captured.');
+      }
+    } catch (e) {
+      e.toString();
+    }
+  }
+
   Future<void> uploadImageToServer(File imageFile) async {
     final districtIdToSend = _selectedDistrict?['districtID'].toString() ?? '';
     final riverNameToSend = _selectedRiver?['riverName'] ?? '';
@@ -233,16 +293,15 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
       ', _latitude : $_latitude '
       ', Longitude : $_longitude  ',
     );
-    // Convert Map<String, dynamic> to Map<String, String>
     Map<String, String> requestDataString = requestData.map((key, value) {
       return MapEntry(key, value.toString());
     });
-    if (await GlobalClass.checkInternet()) {
+    if (await checkInternet() == true) {
       setState(() {
         _isImageError = _pickedImage == null;
         _isUploading = true;
       });
-      showLoaderDialog(context);
+      // showLoaderDialog(context);
       if (_pickedImage == null) {
         ScaffoldMessenger.of(
           context,
@@ -258,7 +317,9 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
 
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload'),
+        Uri.parse(
+          'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+        ),
       );
       request.fields.addAll(requestDataString);
       request.files.add(
@@ -289,21 +350,10 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     }
   }
 
-  // Method to show dialog with dynamic message
   void _showDialog(String title, String message) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        // Start a delayed navigation after showing the dialog
-        Future.delayed(Duration(seconds: 2), () {
-          Navigator.of(context).pop(); // Close the dialog
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DashboardScreen(),
-            ), // Replace with your target screen
-          );
-        });
         return AlertDialog(
           title: Text(title),
           content: Text(message),
@@ -311,7 +361,11 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
             TextButton(
               child: Text('OK'),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => DashboardScreen()),
+                );
               },
             ),
           ],
@@ -381,10 +435,9 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     setState(() {
       _isImageUploading = true;
     });
-    PermissionStatus status = await Permission.camera.status;
-    if (status.isDenied || status.isPermanentlyDenied || status.isRestricted) {
-      status = await Permission.camera.request();
-    }
+
+    // Check and request camera permission
+    PermissionStatus status = await Permission.camera.request();
     if (status.isGranted) {
       try {
         final pickedFile = await ImagePicker().pickImage(
@@ -392,43 +445,96 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
         );
         if (pickedFile != null) {
           File imageFile = File(pickedFile.path);
-          final originalBytes = await imageFile.readAsBytes();
-          img.Image? originalImage = img.decodeImage(originalBytes);
-          if (originalImage != null) {
-            img.Image resized = img.copyResize(originalImage, width: 1920);
-            final compressedBytes = img.encodeJpg(resized, quality: 85);
-            final tempDir = Directory.systemTemp;
-            final compressedFile = await File(
-              '${tempDir.path}/compressed_image.jpg',
-            ).writeAsBytes(compressedBytes);
-            print(
-              'Compressed image size: ${(compressedFile.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
+          // Compress the image to ensure it's under 4MB
+          final Directory appDir = await getTemporaryDirectory();
+          final String compressedPath = path.join(
+            appDir.path,
+            'compressed_image_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+          final XFile? compressedFile =
+              await FlutterImageCompress.compressAndGetFile(
+                imageFile.path,
+                compressedPath,
+                quality: 85, // Adjust quality as needed
+              );
+
+          if (compressedFile != null) {
+            File compressedImageFile = File(compressedFile.path);
+            final fileSize = await compressedImageFile.length();
+            if (fileSize <= 4 * 1024 * 1024) {
+              setState(() {
+                _pickedImage = compressedImageFile;
+                _isImageError = false;
+              });
+              print(
+                'Compressed image size: ${(fileSize / (1024 * 1024)).toStringAsFixed(2)} MB',
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Image size exceeds 4 MB after compression.'),
+                ),
+              );
+            }
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Image compression failed.')),
             );
-            setState(() {
-              _pickedImage = compressedFile;
-            });
           }
         }
       } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("Camera error: $e")));
-        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Camera error: $e')));
       }
+    } else if (status.isPermanentlyDenied) {
+      // Show dialog to guide user to settings
+      showDialog(
+        context: context,
+        builder:
+            (_) => AlertDialog(
+              title: const Text('Camera Permission Required'),
+              content: const Text(
+                'Please enable camera access from settings to capture photos.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    openAppSettings();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Open Settings'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+      );
     } else {
-      // User still denied or permanently denied
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Camera permission is required')),
       );
-      if (await Permission.camera.isPermanentlyDenied) {
-        // Optionally guide user to settings
-        openAppSettings();
-      }
     }
+
     setState(() {
       _isImageUploading = false;
     });
+  }
+
+  Future<bool> checkInternet() async {
+    try {
+      final socket = await Socket.connect(
+        'google.com',
+        80,
+        timeout: Duration(seconds: 3),
+      );
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Widget _buildReadOnlyField(String label, TextEditingController controller) {
@@ -605,7 +711,6 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                 ),
                 const SizedBox(height: 10),
                 _buildTextField('Remarks', _remarksController),
-                // <-- Added Remarks Field
                 const SizedBox(height: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -613,7 +718,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                     Row(
                       children: [
                         ElevatedButton.icon(
-                          onPressed: () => _pickImageFromCamera(context),
+                          onPressed: () => _handlePhotoCapture(),
                           icon: Icon(Icons.camera_alt, color: Colors.white),
                           label: Text(
                             'Upload Image',
@@ -657,71 +762,91 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                         _isUploading
                             ? null
                             : () async {
-                              setState(() {
-                                _isUploading = true; // ⏳ Start shimmer loading
-                              });
-
-                              bool locationEnabled =
-                                  await Geolocator.isLocationServiceEnabled();
-                              if (!locationEnabled) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Please enable your location',
-                                    ),
-                                  ),
-                                );
+                              if (!_formKey.currentState!.validate()) {
                                 setState(() {
-                                  _isUploading = false;
+                                  _isImageError = _pickedImage == null;
                                 });
                                 return;
                               }
 
-                              LocationPermission permission =
-                                  await Geolocator.checkPermission();
-                              if (permission == LocationPermission.denied) {
-                                permission =
-                                    await Geolocator.requestPermission();
-                                if (permission == LocationPermission.denied) {
+                              setState(() {
+                                _isUploading = true;
+                              });
+                              // if(await checkInternet() == false) {
+                              //   ScaffoldMessenger.of(context).showSnackBar(
+                              //     SnackBar(content: Text('No internet connection')),
+                              //   );
+                              //   setState(() {
+                              //     _isUploading = false;
+                              //   });
+                              //   return;
+                              // }
+
+                              try {
+                                bool locationEnabled =
+                                    await Geolocator.isLocationServiceEnabled();
+                                if (!locationEnabled) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'Location permission is required',
+                                        'Please enable your location',
                                       ),
                                     ),
                                   );
-                                  setState(() {
-                                    _isUploading = false;
-                                  });
                                   return;
                                 }
-                              }
 
-                              if (permission ==
-                                  LocationPermission.deniedForever) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Location permission permanently denied. Please enable it from settings.',
+                                LocationPermission permission =
+                                    await Geolocator.checkPermission();
+                                if (permission == LocationPermission.denied) {
+                                  permission =
+                                      await Geolocator.requestPermission();
+                                  if (permission == LocationPermission.denied) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Location permission is required',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                }
+
+                                if (permission ==
+                                    LocationPermission.deniedForever) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Location permission permanently denied. Please enable it from settings.',
+                                      ),
                                     ),
-                                  ),
-                                );
-                                setState(() {
-                                  _isLoading = false;
-                                });
-                                return;
-                              }
+                                  );
+                                  return;
+                                }
 
-                              try {
                                 await fetchLocationData2();
-                                await uploadImageToServer(_pickedImage!);
+                                if (_pickedImage != null) {
+                                  await uploadImageToServer(_pickedImage!);
+                                } else {
+                                  setState(() {
+                                    _isImageError = true;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Please upload an image'),
+                                    ),
+                                  );
+                                }
                               } catch (e) {
                                 print("Upload Error: $e");
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
                               } finally {
                                 if (mounted) {
                                   setState(() {
-                                    _isLoading =
-                                        false; // ✅ Stop shimmer after upload
+                                    _isUploading = false;
                                   });
                                 }
                               }
@@ -743,7 +868,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                       elevation: 5,
                     ),
                     child:
-                        _isLoading
+                        _isUploading
                             ? SizedBox(
                               width: 24,
                               height: 24,
