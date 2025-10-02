@@ -19,31 +19,23 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
+	<string>1.0.1</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<string>2</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-
-	<!-- ✅ Updated purpose strings below -->
 	<key>NSCameraUsageDescription</key>
 	<string>The camera is used to capture profile photos and scan government-issued documents for identity verification and application submissions.</string>
-
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Location data is used in the background to notify users when they are near specific landmarks or government service centers relevant to flood monitoring and emergency response.</string>
-
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is used while the app is active to display nearby flood-affected areas, service points, and relevant alerts for better safety and response planning.</string>
-
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used to record voice notes or reports related to incidents or field data collection by users.</string>
-
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is needed to allow users to upload images of affected areas, damage evidence, or required documents from their gallery.</string>
-	<!-- ✅ End of updated purpose strings -->
-
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
