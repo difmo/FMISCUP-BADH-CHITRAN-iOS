@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:http_parser/http_parser.dart';
 
 class UploadFloodWorkScreen extends StatefulWidget {
   @override
@@ -183,13 +184,18 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     print('Accuracy: $_accuracy');
   }
 
-  Future<void> fetchDistricts() async {
+  Future<void> fetchDistricts({int retryCount = 0}) async {
     const String url =
         'https://fcrupid.fmisc.up.gov.in/api/appstationapi/GetDistrictDDL';
+    final headers = {
+      'Accept': 'application/json',
+      'User-Agent': 'FMISC-UP-App',
+      'Connection': 'keep-alive',
+    };
+    GlobalClass.logRequest(url, headers: headers);
     try {
-      final response = await http.get(Uri.parse(url));
-      print('Status Code GetDistrictDDL: ${response.statusCode}');
-      print('Response Body GetDistrictDDL: ${response.body}');
+      final response = await http.get(Uri.parse(url), headers: headers);
+      GlobalClass.logResponse(url, response.statusCode, response.body);
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         if (jsonData['success'] == true) {
@@ -198,11 +204,17 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
           });
         }
       } else {
-        print('Request failed');
+        if (retryCount < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+          return fetchDistricts(retryCount: retryCount + 1);
+        }
       }
     } catch (e) {
-      print('Error: $e');
-      print('Error: $e');
+      if (retryCount < 2) {
+        await Future.delayed(const Duration(seconds: 1));
+        return fetchDistricts(retryCount: retryCount + 1);
+      }
+      print('Error in fetchDistricts: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -321,14 +333,38 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
           'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
         ),
       );
+
+      // Add headers to fix 'Connection reset by peer'
+      request.headers.addAll({
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
+        'Connection': 'keep-alive',
+      });
+
       request.fields.addAll(requestDataString);
+
+      // Add file with explicit content type to fix GDI+ error
       request.files.add(
-        await http.MultipartFile.fromPath('WorkImage', imageFile.path),
+        await http.MultipartFile.fromPath(
+          'WorkImage',
+          imageFile.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
+
+      GlobalClass.logRequest(
+        'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+        body: requestDataString,
       );
       try {
         http.StreamedResponse response = await request.send();
-        print('Status code: ${response.statusCode}');
         String responseBody = await response.stream.bytesToString();
+        GlobalClass.logResponse(
+          'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+          response.statusCode,
+          responseBody,
+        );
         var decodedResponse = jsonDecode(responseBody);
         if (decodedResponse['success'] == true) {
           _showDialog('Success', decodedResponse['message']);
@@ -362,10 +398,12 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
               child: Text('OK'),
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => DashboardScreen()),
-                );
+                if (title == 'Success') {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => DashboardScreen()),
+                  );
+                }
               },
             ),
           ],
@@ -404,12 +442,23 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     );
   }
 
-  Future<void> _fetchRivers() async {
+  Future<void> _fetchRivers({int retryCount = 0}) async {
     final url = Uri.parse(
       'https://fcrupid.fmisc.up.gov.in/api/appphotoapi/GetRiverDDL',
     );
+    final headers = {
+      'Accept': 'application/json',
+      'User-Agent': 'FMISC-UP-App',
+      'Connection': 'keep-alive',
+    };
+    GlobalClass.logRequest(url.toString(), headers: headers);
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: headers);
+      GlobalClass.logResponse(
+        url.toString(),
+        response.statusCode,
+        response.body,
+      );
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         if (jsonData['success'] == true) {
@@ -419,10 +468,17 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
           });
         }
       } else {
-        throw Exception('Failed to load rivers');
+        if (retryCount < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+          return _fetchRivers(retryCount: retryCount + 1);
+        }
       }
     } catch (e) {
-      print('Error: $e');
+      if (retryCount < 2) {
+        await Future.delayed(const Duration(seconds: 1));
+        return _fetchRivers(retryCount: retryCount + 1);
+      }
+      print('Error in _fetchRivers: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -586,16 +642,118 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     );
   }
 
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Clear all saved data
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      (route) => false, // Remove all previous routes
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          'Upload Flood Work Photo',
-          style: TextStyle(color: Colors.white),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: AppBar(
+          backgroundColor: const Color(0xff1A237E),
+          automaticallyImplyLeading: false,
+          flexibleSpace: SafeArea(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Centered title
+                const Center(
+                  child: Text(
+                    'बाढ़ चित्रण',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                // Left side: Back button and Logo
+                Positioned(
+                  left: 10,
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(width: 5),
+                      const CircleAvatar(
+                        radius: 20,
+                        backgroundImage: AssetImage('assets/image/logo.png'),
+                        backgroundColor: Colors.white,
+                      ),
+                    ],
+                  ),
+                ),
+                // Right side: Logout button
+                Positioned(
+                  right: 10,
+                  child: IconButton(
+                    icon: const Icon(Icons.logout, color: Colors.white),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder:
+                            (context) => AlertDialog(
+                              title: const Text(
+                                'Logout',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blueAccent,
+                                ),
+                              ),
+                              content: const Text(
+                                'Are you sure you want to logout?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _logout();
+                                  },
+                                  child: const Text(
+                                    'Logout',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        backgroundColor: Color(0xFF0056A4),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

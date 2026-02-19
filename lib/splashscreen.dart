@@ -31,11 +31,13 @@ class _SplashScreenState extends State<SplashScreen> {
           'isDeveloperModeEnabled',
         );
         if (isEnabled) {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => DebugModeScreen()),
           );
         } else {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const DashboardScreen()),
@@ -44,6 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
       } on PlatformException catch (e) {
         print("Failed to check developer mode: ${e.message}");
         // Fallback to dashboard if error occurs
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
@@ -51,6 +54,7 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     } else {
       // On iOS or Web, default to DashboardScreen
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const DashboardScreen()),

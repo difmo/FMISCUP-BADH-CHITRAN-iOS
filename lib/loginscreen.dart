@@ -45,12 +45,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final String _otp = '890234'; // Static OTP
 
   // Function to simulate OTP sending
-  void sendOtp(String mobileNumber) async {
-    setState(() {
-      _isOtpInputVisible = true; // Show OTP input field after login
-      _message = 'Sending OTP...';
-    });
-    startOtpTimer(); // ⏱️ Start 30-second timer
+  void sendOtp(String mobileNumber, {int retryCount = 0}) async {
+    if (retryCount == 0) {
+      setState(() {
+        _isOtpInputVisible = true; // Show OTP input field after login
+        _message = 'Sending OTP...';
+      });
+      startOtpTimer(); // ⏱️ Start 30-second timer
+    }
     // ✅ Step 1: Generate a 4-digit OTP
     final random = Random();
     final otp = (100000 + random.nextInt(900000)).toString(); // 6-digit OTP
@@ -61,26 +63,35 @@ class _LoginScreenState extends State<LoginScreen> {
         "https://bulksms.bsnl.in:5010/api/Push_SMS?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1bmlxdWVfbmFtZSI6IjExMjI3IDEiLCJuYmYiOjE3NTkzMDc0OTEsImV4cCI6MTc5MDg0MzQ5MSwiaWF0IjoxNzU5MzA3NDkxLCJpc3MiOiJodHRwczovL2J1bGtzbXMuYnNubC5pbjo1MDEwIiwiYXVkIjoiMTEyMjcgMSJ9.fVsQNJxKwmel8pT9QSNwpGXTbih5cZpjo5bQ-Mp2d9k&header=FMISUP&target=$mobileNumber&message=Your%20One%20Time%20Password%20for%20Login%20is%20$otp%0A-%20Flood%20Management%20Info%20Sys%20Centre%20Irrigation%20Department%20UP&type=TXN&templateid=1407175930492674022&entityid=1401706860000076282&unicode=0&flash=0";
 
     final Uri url = Uri.parse(apiUrl);
-    // final Uri url = Uri.parse(
-    //   "https://www.smsjust.com/sms/user/urlsms.php?apikey=6c0384-dd9494-ff97df-fcefc1-14a497&senderid=UPFWBI&dlttempid=1707173503381660952&message=Your%20One-Time%20Password%20(OTP)%20for%20Login%20is%20$otp%20-%20UPFWBI%20&dest_mobileno=$mobileNumber&&response=Y",
-    // );
+    final headers = {
+      'Accept': 'application/json',
+      'User-Agent': 'FMISC-UP-App',
+      'Connection': 'keep-alive',
+    };
 
+    GlobalClass.logRequest(apiUrl, headers: headers);
     try {
-      final response = await http.get(url);
+      final response = await http.get(url, headers: headers);
+      GlobalClass.logResponse(apiUrl, response.statusCode, response.body);
       if (response.statusCode == 200) {
         print('OTP API Response: ${response.body}');
-        final body = response.body.trim();
-        final extractedOtp = body.substring(body.length - 5);
-        print("Extracted OTP: $extractedOtp");
         setState(() {
           _message = 'OTP sent to $mobileNumber';
         });
       } else {
+        if (retryCount < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+          return sendOtp(mobileNumber, retryCount: retryCount + 1);
+        }
         setState(() {
           _message = 'Failed to send OTP: ${response.statusCode}';
         });
       }
     } catch (e) {
+      if (retryCount < 2) {
+        await Future.delayed(const Duration(seconds: 1));
+        return sendOtp(mobileNumber, retryCount: retryCount + 1);
+      }
       setState(() {
         _message = 'OTP error: $e';
       });
@@ -103,7 +114,8 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _message = 'OTP Verified ✅';
       });
-      Navigator.push(
+      // Navigate to UploadFloodWorkScreen and remove LoginScreen from stack
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => UploadFloodWorkScreen()),
       );
@@ -118,6 +130,10 @@ class _LoginScreenState extends State<LoginScreen> {
     _start = 30;
     _timer?.cancel(); // Cancel existing timer if any
     _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_start == 0) {
         timer.cancel();
         setState(() {}); // Update UI when timer ends
@@ -143,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> loginUser() async {
+  Future<void> loginUser({int retryCount = 0}) async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text.trim();
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
@@ -164,26 +180,35 @@ class _LoginScreenState extends State<LoginScreen> {
         GlobalClass.customToast('No internet connection');
         return;
       }
-      setState(() {
-        _termsError = null;
-      });
-      if (!_formKey.currentState!.validate()) return;
-      if (!_termsAccepted) {
+      if (retryCount == 0) {
         setState(() {
-          _termsError = 'You must accept the terms and conditions';
+          _termsError = null;
+          _isLoading = true;
+          _message = '';
         });
-        return;
+        if (!_formKey.currentState!.validate()) {
+          setState(() => _isLoading = false);
+          return;
+        }
+        if (!_termsAccepted) {
+          setState(() {
+            _termsError = 'You must accept the terms and conditions';
+            _isLoading = false;
+          });
+          return;
+        }
       }
-      setState(() {
-        _isLoading = true;
-        _message = '';
-      });
       String url =
           'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
+      final headers = {
+        'Accept': 'application/json',
+        'User-Agent': 'FMISC-UP-App',
+        'Connection': 'keep-alive',
+      };
+      GlobalClass.logRequest(url, headers: headers);
       try {
-        final response = await http.get(Uri.parse(url));
-        print('Status Code login: ${response.statusCode}');
-        print('Response Body login: ${response.body}');
+        final response = await http.get(Uri.parse(url), headers: headers);
+        GlobalClass.logResponse(url, response.statusCode, response.body);
         // Parse response body regardless of status code
         try {
           final jsonResponse = json.decode(response.body);
@@ -202,6 +227,10 @@ class _LoginScreenState extends State<LoginScreen> {
             });
             sendOtp(_mobileNo!);
           } else {
+            if (response.statusCode != 200 && retryCount < 2) {
+              await Future.delayed(const Duration(seconds: 1));
+              return loginUser(retryCount: retryCount + 1);
+            }
             setState(() {
               _message = jsonResponse['message'] ?? 'Login failed';
             });
@@ -212,13 +241,21 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         }
       } catch (e) {
+        if (retryCount < 2) {
+          await Future.delayed(const Duration(seconds: 1));
+          return loginUser(retryCount: retryCount + 1);
+        }
         setState(() {
           _message = 'Error: $e';
         });
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (retryCount == 2 ||
+            _message.contains('Successful') ||
+            _message.contains('failed')) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -718,5 +755,19 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _emailController.dispose();
+    _passwordController.dispose();
+    for (var controller in _otpControllers) {
+      controller.dispose();
+    }
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
   }
 }
