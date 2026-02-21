@@ -5,7 +5,7 @@ import 'package:fmiscupaap3/dashboardscreen.dart';
 import 'package:fmiscupaap3/globalclass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:image/image.dart' as img;
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -313,70 +313,100 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
         _isImageError = _pickedImage == null;
         _isUploading = true;
       });
-      // showLoaderDialog(context);
+
       if (_pickedImage == null) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("Please upload an image")));
+        setState(() => _isUploading = false);
         return;
       }
       if (_selectedDistrict == null) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Please select a district')));
+        setState(() => _isUploading = false);
         return;
       }
 
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(
-          'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
-        ),
-      );
+      int retryCount = 0;
+      const int maxRetries = 3;
+      bool uploadSuccess = false;
+      String lastError = '';
 
-      // Add headers to fix 'Connection reset by peer'
-      request.headers.addAll({
-        'Accept': 'application/json, text/plain, */*',
-        'User-Agent':
-            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
-        'Connection': 'keep-alive',
-      });
+      while (retryCount < maxRetries && !uploadSuccess) {
+        var client = http.Client();
+        try {
+          var request = http.MultipartRequest(
+            'POST',
+            Uri.parse(
+              'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+            ),
+          );
 
-      request.fields.addAll(requestDataString);
+          request.headers.addAll({
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent':
+                'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36',
+            'Connection': 'keep-alive',
+          });
 
-      // Add file with explicit content type to fix GDI+ error
-      request.files.add(
-        await http.MultipartFile.fromPath(
-          'WorkImage',
-          imageFile.path,
-          contentType: MediaType('image', 'jpeg'),
-        ),
-      );
+          request.fields.addAll(requestDataString);
 
-      GlobalClass.logRequest(
-        'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
-        body: requestDataString,
-      );
-      try {
-        http.StreamedResponse response = await request.send();
-        String responseBody = await response.stream.bytesToString();
-        GlobalClass.logResponse(
-          'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
-          response.statusCode,
-          responseBody,
-        );
-        var decodedResponse = jsonDecode(responseBody);
-        if (decodedResponse['success'] == true) {
-          _showDialog('Success', decodedResponse['message']);
-        } else {
-          _showDialog('Failure', decodedResponse['message']);
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'WorkImage',
+              imageFile.path,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+
+          GlobalClass.logRequest(
+            'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+            body: requestDataString,
+          );
+
+          // Use client.send to allow for timeout and resource management
+          http.StreamedResponse response = await client
+              .send(request)
+              .timeout(const Duration(seconds: 60));
+
+          String responseBody = await response.stream.bytesToString();
+          GlobalClass.logResponse(
+            'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+            response.statusCode,
+            responseBody,
+          );
+
+          var decodedResponse = jsonDecode(responseBody);
+          if (decodedResponse['success'] == true) {
+            uploadSuccess = true;
+            _showDialog('Success', decodedResponse['message']);
+          } else {
+            // If server returns success=false, don't retry, it's a logic error
+            _showDialog('Failure', decodedResponse['message']);
+            break;
+          }
+        } catch (e) {
+          print('Upload attempt ${retryCount + 1} failed: $e');
+          lastError = e.toString();
+          retryCount++;
+          if (retryCount < maxRetries) {
+            await Future.delayed(Duration(seconds: 2)); // Wait before retry
+          }
+        } finally {
+          client.close();
         }
-      } catch (e) {
-        print('Upload error: $e');
-        _showDialog('Error', 'An error occurred while uploading the image');
-      } finally {
-        setState(() => _isUploading = false);
       }
+
+      if (!uploadSuccess && retryCount == maxRetries) {
+        _showDialog(
+          'Error',
+          'Upload failed after $maxRetries attempts. Error: $lastError',
+        );
+      }
+
+      setState(() => _isUploading = false);
     } else {
       //todo local
       SharedPreferences prefs = await SharedPreferences.getInstance();
