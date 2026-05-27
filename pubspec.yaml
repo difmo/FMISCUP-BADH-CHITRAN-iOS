@@ -41,8 +41,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  http: ^0.13.6
-  google_fonts: ^4.0.4  # Use the latest
+  http: ^1.2.0
+  google_fonts: ^6.1.0  # Use the latest
   geolocator: ^10.1.0  # Or latest version
   image_picker: ^1.0.4
   image: ^4.1.7
