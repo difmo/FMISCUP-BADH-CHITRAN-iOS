@@ -2,17 +2,18 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-
 class DebugModeScreen extends StatelessWidget {
+  const DebugModeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: DebugAlertScreen(),
-    );
+    return MaterialApp(home: DebugAlertScreen());
   }
 }
 
 class DebugAlertScreen extends StatefulWidget {
+  const DebugAlertScreen({super.key});
+
   @override
   _DebugAlertScreenState createState() => _DebugAlertScreenState();
 }
@@ -24,8 +25,6 @@ class _DebugAlertScreenState extends State<DebugAlertScreen> {
     super.initState();
   }
 
-
-
   void _openDeveloperSettings() async {
     try {
       await platform.invokeMethod('openDeveloperSettings');
@@ -34,13 +33,11 @@ class _DebugAlertScreenState extends State<DebugAlertScreen> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child:Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.warning, color: Colors.red, size: 120),
@@ -64,28 +61,21 @@ class _DebugAlertScreenState extends State<DebugAlertScreen> {
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _openDeveloperSettings();  // Handle button press
+                _openDeveloperSettings(); // Handle button press
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,           // Button background color
-                foregroundColor: Colors.white,            // Text/icon color
-                padding: EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                elevation: 8,                              // Shadow elevation
+                backgroundColor: Colors.indigo, // Button background color
+                foregroundColor: Colors.white, // Text/icon color
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                elevation: 8, // Shadow elevation
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30), // Rounded corners
                 ),
-                shadowColor: Colors.indigoAccent,          // Shadow color
-                textStyle: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                shadowColor: Colors.indigoAccent, // Shadow color
+                textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               child: Text('Ok'),
-            )
-
+            ),
           ],
         ),
       ),

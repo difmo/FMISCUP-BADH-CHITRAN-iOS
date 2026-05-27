@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fmiscupaap3/splashscreen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 

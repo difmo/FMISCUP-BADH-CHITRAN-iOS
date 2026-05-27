@@ -34,25 +34,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     },
     {
       'name': 'Shri Swatantra Dev Singh',
-      'position': 'Hon\'ble Cabinet Minister\nJai Shakti, Uttar Pradesh',
+      'position': 'Hon\'ble Cabinet Minister\nJal Shakti, Uttar Pradesh',
       'imagePath': 'assets/image/swatantra.jpg',
     },
     {
       'name': 'Shri Dinesh Khateek',
-      'position': 'Hon\'ble Minister of State\nJai Shakti, Uttar Pradesh',
+      'position': 'Hon\'ble Minister of State\nJal Shakti, Uttar Pradesh',
       'imagePath': 'assets/image/dinesh.jpg',
     },
     {
       'name': 'Shri Ramkesh Nishad',
-      'position': 'Hon\'ble Minister of State\nJai Shakti, Uttar Pradesh',
+      'position': 'Hon\'ble Minister of State\nJal Shakti, Uttar Pradesh',
       'imagePath': 'assets/image/ramkesh.jpg',
     },
   ];
 
+  bool _isLoggedIn = false;
+
   @override
   void initState() {
     super.initState();
+    _checkLoginStatus();
     sendLocalData();
+  }
+
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isLoggedIn =
+          (prefs.getString('userId') != null &&
+              prefs.getString('userId')!.isNotEmpty);
+    });
   }
 
   void sendLocalData() async {
@@ -60,7 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String request = prefs.getString('uploadRequestData') ?? "";
     if (request.isNotEmpty) {
       Map<String, dynamic> requestData = await jsonDecode(request);
-      String imagePath = await prefs.getString('imagePath') ?? "";
+      String imagePath = prefs.getString('imagePath') ?? "";
       imagePath = jsonDecode(imagePath);
       if (await GlobalClass.checkInternet()) {
         await sendLocalDataOnServer(requestData, imagePath);
@@ -80,14 +92,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'POST',
       Uri.parse('https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload'),
     );
-    request.fields.addAll(requestDataString);
-    request.files.add(
-      await http.MultipartFile.fromPath('WorkImage', imagePath),
+    GlobalClass.logRequest(
+      'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+      body: requestDataString,
     );
     try {
       http.StreamedResponse response = await request.send();
-      print('Status code: ${response.statusCode}');
       String responseBody = await response.stream.bytesToString();
+      GlobalClass.logResponse(
+        'https://fcrupid.fmisc.up.gov.in/api/AppPhotoAPI/PAImgUpload',
+        response.statusCode,
+        responseBody,
+      );
       var decodedResponse = jsonDecode(responseBody);
       if (decodedResponse['success'] == true) {
         clearData();
@@ -118,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             TextButton(
               child: Text('OK'),
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
             ),
           ],
@@ -155,26 +171,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // Left logo
                 Positioned(
                   left: 10,
-                  child: Row(
-                    children: [
-                      // IconButton(
-                      //   icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      //   onPressed: () {
-                      //     Navigator.pop(context); // Go back
-                      //   },
-                      // ),
-                      // const SizedBox(width: 5),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 20),
-                        child: const CircleAvatar(
-                          radius: 20,
-                          backgroundImage: AssetImage('assets/image/logo.png'),
-                          backgroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 20),
+                    child: const CircleAvatar(
+                      radius: 20,
+                      backgroundImage: AssetImage('assets/image/logo.png'),
+                      backgroundColor: Colors.white,
+                    ),
                   ),
                 ),
+                // Right Logout Button
+                if (_isLoggedIn)
+                  Positioned(
+                    right: 10,
+                    child: IconButton(
+                      icon: const Icon(Icons.logout, color: Colors.white),
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.clear();
+                        setState(() {
+                          _isLoggedIn = false;
+                        });
+                        GlobalClass.customToast("Logged out successfully");
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
@@ -294,11 +315,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => LoginScreen()),
-                      );
+                    onPressed: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      final String? userId = prefs.getString('userId');
+
+                      if (userId != null && userId.isNotEmpty) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => UploadFloodWorkScreen(),
+                          ),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LoginScreen(),
+                          ),
+                        );
+                      }
                     },
                     icon: const Icon(Icons.arrow_forward, color: Colors.white),
                     label: const Text(
