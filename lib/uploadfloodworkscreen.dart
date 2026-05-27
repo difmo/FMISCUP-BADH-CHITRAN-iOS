@@ -16,6 +16,8 @@ import 'package:path/path.dart' as path;
 import 'package:http_parser/http_parser.dart';
 
 class UploadFloodWorkScreen extends StatefulWidget {
+  const UploadFloodWorkScreen({super.key});
+
   @override
   _UploadFloodWorkScreenState createState() => _UploadFloodWorkScreenState();
 }
@@ -799,7 +801,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                       labelText: 'River Name',
                       border: OutlineInputBorder(),
                     ),
-                    value: _selectedRiver,
+                    initialValue: _selectedRiver,
                     items:
                         _riverList.map((river) {
                           return DropdownMenuItem(
@@ -821,7 +823,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                     labelText: 'River Side',
                     border: OutlineInputBorder(),
                   ),
-                  value:
+                  initialValue:
                       _riverSideController.text.isNotEmpty
                           ? _riverSideController.text
                           : null,
@@ -847,7 +849,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                     labelText: 'Choose District',
                     border: OutlineInputBorder(),
                   ),
-                  value: _selectedDistrict,
+                  initialValue: _selectedDistrict,
                   items:
                       _districtList.map<DropdownMenuItem<Map<String, dynamic>>>(
                         (district) {
@@ -878,7 +880,7 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
                     labelText: 'Work duration',
                     border: OutlineInputBorder(),
                   ),
-                  value:
+                  initialValue:
                       _workDurationController.text.isNotEmpty
                           ? _workDurationController.text
                           : null,

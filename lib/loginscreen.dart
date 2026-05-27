@@ -34,11 +34,11 @@ class _LoginScreenState extends State<LoginScreen> {
   double? _accuracy;
   bool _isLoading = false;
   bool _isOtpInputVisible = false; // Show OTP input only after login
-  List<TextEditingController> _otpControllers = List.generate(
+  final List<TextEditingController> _otpControllers = List.generate(
     6,
     (index) => TextEditingController(),
   );
-  List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   int _start = 30;
   Timer? _timer;
   bool _isLoginInProgress = false; // Prevent duplicate login requests
@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-   void verifyOtp() async {
+  void verifyOtp() async {
     String enteredOtp =
         _otpControllers.map((controller) => controller.text).join();
     if (enteredOtp == _generatedOtp || enteredOtp == '202526') {
@@ -119,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('userId', _userId!);
       await prefs.setString('savedEmail', _emailController.text);
       await prefs.setString('savedPassword', _passwordController.text);
-      
+
       setState(() {
         _message = 'OTP Verified ✅';
       });
@@ -136,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void startOtpTimer() {
     _start = 30;
-    _timer?.cancel(); 
+    _timer?.cancel();
     _timer = Timer.periodic(Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
       String url =
-          'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=${email}&password=${password}';
+          'https://fcrupid.fmisc.up.gov.in/api/appuserapi/PALogin?userid=$email&password=$password';
       final headers = {
         'Accept': 'application/json',
         'User-Agent': 'FMISC-UP-App',
@@ -437,7 +437,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       gradient: LinearGradient(
                         colors: [
                           const Color(0xFF66b5f8),
-                          Colors.white.withOpacity(0.0),
+                          Colors.white.withValues(alpha: 0.0),
                           const Color(0xFF4fabf6),
                         ],
                         begin: Alignment.topCenter,
@@ -560,7 +560,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
+                                SizedBox(
                                   height: 28,
                                   child: Checkbox(
                                     value: _termsAccepted,
@@ -712,18 +712,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               SizedBox(height: screenWidth * 0.05),
                               SizedBox(height: screenWidth * 0.05),
-                              Text("$_message", style: TextStyle(fontSize: 12)),
+                              Text(_message, style: TextStyle(fontSize: 12)),
                               ElevatedButton(
                                 onPressed: verifyOtp,
-                                child: const Text(
-                                  "Verify OTP",
-                                  style: TextStyle(color: Colors.white),
-                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.indigo,
                                   padding: EdgeInsets.symmetric(
                                     horizontal: screenWidth * 0.20,
                                   ),
+                                ),
+                                child: const Text(
+                                  "Verify OTP",
+                                  style: TextStyle(color: Colors.white),
                                 ),
                               ),
                             ],
@@ -731,6 +731,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (!_isOtpInputVisible)
                           ElevatedButton(
                             onPressed: loginUser,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.indigo,
+                              padding: EdgeInsets.symmetric(
+                                vertical: screenWidth * 0.02,
+                              ),
+                            ),
                             child:
                                 _isLoading
                                     ? const CircularProgressIndicator(
@@ -740,12 +746,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                       "Login",
                                       style: TextStyle(color: Colors.white),
                                     ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.indigo,
-                              padding: EdgeInsets.symmetric(
-                                vertical: screenWidth * 0.02,
-                              ),
-                            ),
                           ),
                         SizedBox(height: screenWidth * 0.05),
                         Text(
