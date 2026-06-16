@@ -225,11 +225,9 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
     }
   }
 
-  Future<File?> _takePhoto() async {
+  Future<File?> _takePhoto(ImageSource source) async {
     final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(
-      source: ImageSource.camera,
-    );
+    final XFile? pickedFile = await picker.pickImage(source: source);
 
     if (pickedFile != null) {
       final Directory appDir = await getApplicationDocumentsDirectory();
@@ -271,17 +269,70 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
 
   void _handlePhotoCapture() async {
     try {
-      final File? imagePath = await _takePhoto();
+      PermissionStatus status = await Permission.camera.request();
+      if (status.isPermanentlyDenied) {
+        _showPermissionDeniedDialog(
+          'Camera Permission Required',
+          'Please enable camera access in settings to capture photos.',
+        );
+        return;
+      }
+      if (!status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Camera permission is required')),
+        );
+        return;
+      }
+
+      final File? imagePath = await _takePhoto(ImageSource.camera);
       if (imagePath != null) {
         setState(() {
           _pickedImage = imagePath;
+          _isImageError = false;
         });
       } else {
         print('No photo captured.');
       }
+    } on PlatformException catch (e) {
+      String message = 'Error: ${e.message}';
+      if (e.code == 'camera_not_available') {
+        message = 'Camera is not available on this device.';
+      } else if (e.code == 'camera_access_denied') {
+        message =
+            'Camera permission was denied. Please allow access in Settings.';
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      e.toString();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
     }
+  }
+
+  void _showPermissionDeniedDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  openAppSettings();
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Open Settings'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> uploadImageToServer(File imageFile) async {
@@ -427,14 +478,21 @@ class _UploadFloodWorkScreenState extends State<UploadFloodWorkScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              child: Text('OK'),
+              child: const Text('OK'),
               onPressed: () {
                 Navigator.of(context).pop();
                 if (title == 'Success') {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => DashboardScreen()),
-                  );
+                  _workNameController.clear();
+                  _remarksController.clear();
+                  _blockController.clear();
+                  _villageController.clear();
+                  setState(() {
+                    _pickedImage = null;
+                    _selectedRiver = null;
+                    _selectedDistrict = null;
+                    _riverSideController.clear();
+                    _workDurationController.clear();
+                  });
                 }
               },
             ),
